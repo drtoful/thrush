@@ -123,7 +123,7 @@ def _rrd_init(obj, filename):
     obj.filename = filename
 
 def _rrd_setattr(obj, key, value):
-    if key in obj._meta['datasources_list'] or key in obj._meta['rras_list']:
+    if key in obj._meta['datasources_list'] or key in obj._meta['rras_list'] or key == "_meta":
         raise Exception("trying to write read-only attribute")
     object.__setattr__(obj, key, value)
 
