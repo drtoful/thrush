@@ -38,7 +38,7 @@ def _convert_time(timeinfo):
     # or just get the string representation of whatever
     # was passed
     if isinstance(timeinfo, datetime.datetime):
-        timeinfo = time.time.mktime(timeinfo.timetuple())
+        timeinfo = int(time.mktime(timeinfo.timetuple()))
     return repr(timeinfo)
 
 _time_localoffset = datetime.timedelta(seconds=
@@ -122,11 +122,6 @@ def _rrdtool_impl(filename, command, options):
 def _rrd_init(obj, filename):
     obj.filename = filename
 
-def _rrd_setattr(obj, key, value):
-    if key in obj._meta['datasources_list'] or key in obj._meta['rras_list'] or key == "_meta":
-        raise Exception("trying to write read-only attribute")
-    object.__setattr__(obj, key, value)
-
 def _rrd_create(obj, start='N', step=300, overwrite=False):
     """
         @param start can be one of the following
@@ -145,6 +140,19 @@ def _rrd_create(obj, start='N', step=300, overwrite=False):
 
     stdout = obj._meta['implementation'](obj.filename, "create", options)
 
+def _rrd_update(obj, timestamp, **kwargs):
+    options = ["--template", ":".join(obj._meta['datasources_list']), "--"]
+
+    data = [_convert_time(timestamp)]
+    for dsname in obj._meta['datasources_list']:
+        if not kwargs.has_key(dsname):
+            data += ["U"]
+        else:
+            data += [repr(kwargs[dsname])]
+    options += [":".join(data)]
+
+    stdout = obj._meta['implementation'](obj.filename, "update", options)
+
 def _rrd_first(obj, index=0):
     options = ["--rraindex", repr(index)]
     stdout = obj._meta['implementation'](obj.filename, "first", options)
@@ -158,9 +166,9 @@ class RRDMeta(type):
             super_class = super_new(cls, name, base, attrs)
 
             super_class.add_to_class('create', _rrd_create)
+            super_class.add_to_class('update', _rrd_update)
             super_class.add_to_class('first', _rrd_first)
             super_class.add_to_class('__init__', _rrd_init)
-            super_class.add_to_class('__setattr__', _rrd_setattr)
 
             return super_class
 
