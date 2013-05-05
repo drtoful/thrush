@@ -27,6 +27,8 @@ import locale
 from subprocess import Popen, PIPE
 
 _dsname_re = re.compile('[^a-zA-Z0-9_]')
+_fetch_re = re.compile('[0-9]+: .+')
+
 def _convert_ds_name(name):
     # ds-names are only allowed to be 1-19 characters
     # long and contain [a-Z0-9_] (according to
@@ -49,6 +51,9 @@ def _convert_utc_time(timestamp):
     timestamp = locale.atoi(timestamp)
     d = datetime.datetime.fromtimestamp(timestamp)
     return d + _time_localoffset
+
+def _convert_float(value):
+    return locale.atof(value)
 
 class RRDError(Exception):
     def __init__(self, errorcode, message):
@@ -96,6 +101,10 @@ class RRA(object):
         return "RRA:%s:%s:%s:%s" % (
             self._CF, self.xff, self.steps, self.rows)
 
+    @property
+    def cf(self):
+        return self._CF
+
 class Average(RRA):
     _CF = "AVERAGE"
 
@@ -107,6 +116,26 @@ class Max(RRA):
 
 class Last(RRA):
     _CF = "LAST"
+
+class RRDFetchResult(object):
+    def __init__(self, stdout, dsnames):
+        self.stdout = stdout
+        self.dsnames = dsnames
+
+    def __iter__(self):
+        for line in self.stdout:
+            match = _fetch_re.match(line)
+            if match is None: continue
+
+            timestamp, values = line.split(":", 1)
+            converted_values = map(_convert_float, values.strip().split(' '))
+            yield _convert_utc_time(timestamp), dict(zip(self.dsnames, converted_values))
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self.stdout.close()
 
 def _rrdtool_impl(filename, command, options):
     env = os.environ
@@ -153,6 +182,14 @@ def _rrd_update(obj, timestamp, **kwargs):
 
     stdout = obj._meta['implementation'](obj.filename, "update", options)
 
+
+def _rrd_fetch(obj, cf, start="end-1day", end="now", resolution=None):
+    options = [repr(cf), "--start", _convert_time(start), "--end", _convert_time(end)]
+    if not resolution is None:
+        options += ['--resolution', repr(resolution)]
+    stdout = obj._meta['implementation'](obj.filename, "fetch", options)
+    return RRDFetchResult(stdout, obj._meta['datasources_list'])
+
 def _rrd_first(obj, index=0):
     options = ["--rraindex", repr(index)]
     stdout = obj._meta['implementation'](obj.filename, "first", options)
@@ -168,6 +205,7 @@ class RRDMeta(type):
             super_class.add_to_class('create', _rrd_create)
             super_class.add_to_class('update', _rrd_update)
             super_class.add_to_class('first', _rrd_first)
+            super_class.add_to_class('fetch', _rrd_fetch)
             super_class.add_to_class('__init__', _rrd_init)
 
             return super_class
