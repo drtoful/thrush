@@ -149,7 +149,7 @@ class RRDFetchResult(object):
 
     def __init__(self, stdout, dsnames):
         self.stdout = stdout
-        self.dsnames = dsnames
+        self.dsnames = [_convert_ds_name(name) for name in dsnames]
 
     def __iter__(self):
         for line in self.stdout:
@@ -214,12 +214,8 @@ def _rrd_create(self, start='N', step=300, overwrite=False):
     options = ["--start", _convert_time(start), "--step", repr(step)]
     if not overwrite:
         options += ["--no-overwrite"]
-
-    for name, datasource in self._meta['datasources'].items():
-        options += [repr(datasource)]
-    for name, rra in self._meta['rras'].items():
-        options += [repr(rra)]
-
+    options += [repr(ds) for _, ds in self._meta['datasources'].items()]
+    options += [repr(rra) for _, rra in self._meta['rras'].items()]
     stdout = self._meta['implementation'](self.filename, "create", options)
 
 def _rrd_update(self, timestamp, **kwargs):
@@ -261,17 +257,11 @@ def _rrd_update(self, timestamp, **kwargs):
         .. _rrdupdate: http://oss.oetiker.ch/rrdtool/doc/rrdupdate.en.html
     """
     options = ["--template", ":".join(self._meta['datasources_list']), "--"]
-
     data = [_convert_time(timestamp)]
-    for dsname in self._meta['datasources_list']:
-        if not kwargs.has_key(dsname):
-            data += ["U"]
-        else:
-            data += [repr(kwargs[dsname])]
+    data += ["U" if not kwargs.has_key(ds) else str(kwargs[ds])
+        for ds in self._meta['datasources_list']]
     options += [":".join(data)]
-
     stdout = self._meta['implementation'](self.filename, "update", options)
-
 
 def _rrd_fetch(self, cf, start="end-1day", end="now", resolution=None):
     """
@@ -375,7 +365,7 @@ class RRDMeta(type):
         if isinstance(value, DataSource):
             dsname = _convert_ds_name(name)
             cls._meta['datasources'][name] = value
-            cls._meta['datasources_list'].append(dsname)
+            cls._meta['datasources_list'].append(name)
             setattr(value, 'name', dsname)
         elif isinstance(value, RRA):
             cls._meta['rras'][name] = value
