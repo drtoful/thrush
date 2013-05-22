@@ -1,5 +1,10 @@
 #-*- coding: utf-8 -*-
 
+"""
+    :copyright: (c) 2013 by Tobias Heinzen
+    :license: BSD, see LICENSE for more details
+"""
+
 import re
 import os
 import datetime
