@@ -1,24 +1,5 @@
 #-*- coding: utf-8 -*-
 
-"""
-class MyRRD(RRD):
-    ds1 = Gauge(...)
-    ds2 = Counter(...)
-
-    rra1 = Average(...)
-    rra2 = Average(...)
-    rra2 = Max(...)
-
-r = MyRRD(filename)
-r.create(...)
-r.fetch(...)
-    [{'time': ..., 'ds1': ..., 'ds2': ...}, ...]
-r.update(...,ds1=...,ds2=...)
-r.write()
-
-MyNewRRDClass = RRDUtils.create_from_info(filename, ...)
-"""
-
 import re
 import os
 import datetime
@@ -68,6 +49,10 @@ class RRDError(Exception):
         return str(self)
 
 class DataSource(object):
+    """
+        Base class for all Data Source Types.
+    """
+
     def __init__(self, heartbeat, min='U', max='U'):
         self.heartbeat = repr(heartbeat)
         self.min = repr(min)
@@ -92,6 +77,10 @@ class Counter(DataSource):
     _DST = "COUNTER"
 
 class RRA(object):
+    """
+        Base class for all Round Robin Archives.
+    """
+
     def __init__(self, xff, steps, rows):
         self.xff = repr(xff)
         self.steps = repr(steps)
@@ -106,18 +95,58 @@ class RRA(object):
         return self._CF
 
 class Average(RRA):
+    """
+        Implements the **AVERAGE** consolidation function
+    """
     _CF = "AVERAGE"
 
 class Min(RRA):
+    """
+        Implements the **MIN** consolidation function
+    """
     _CF = "MIN"
 
 class Max(RRA):
+    """
+        Implements the **MAX** consolidation function
+    """
     _CF = "MAX"
 
 class Last(RRA):
+    """
+        Implements the **LAST** consolidation function
+    """
     _CF = "LAST"
 
 class RRDFetchResult(object):
+    """
+        An object of this class can be iterated. On every iteration
+        you will be returned a tuple containing a :py:class:`datetime`
+        object and a dictionary.
+
+        The dictionary will contain the values for every datasource
+        at the given time. The key to the dictionary will be the
+        datasource names, as stored in the RRD.
+
+        As this object will contain an open file descriptor to the
+        output of ``rrdfetch`` it is advised to close it after
+        use. This can be achieved automatically by using this
+        object within a ``with`` statement.
+
+        *Example*:
+
+        .. sourcecode:: python
+
+            class MyRRD(rrd.RRD):
+                ds = rrd.Gauge(heartbeat=600)
+                rra = rrd.Max(xff=0.5, steps=1, rows=24)
+
+            myrrd = MyRRD("my.rrd")
+            with myrrd.fetch(myrrd.rra.cf) as result:
+                for timestamp, values in result:
+                    print timestamp, values[myrrd.ds.name]
+    """
+
     def __init__(self, stdout, dsnames):
         self.stdout = stdout
         self.dsnames = dsnames
@@ -139,8 +168,10 @@ class RRDFetchResult(object):
 
 def _rrdtool_impl(filename, command, options):
     env = os.environ
-    process = Popen('rrdtool %s %s %s' % (command, filename, " ".join(options)),
-        env=env, shell=True, stdout=PIPE, stderr=PIPE)
+    process = Popen(
+        'rrdtool %s %s %s' % (command, filename, " ".join(options)),
+        env=env, shell=True, stdout=PIPE, stderr=PIPE
+    )
     process.wait()
 
     if process.returncode != 0:
@@ -148,51 +179,165 @@ def _rrdtool_impl(filename, command, options):
 
     return process.stdout
 
-def _rrd_init(obj, filename):
-    obj.filename = filename
-
-def _rrd_create(obj, start='N', step=300, overwrite=False):
+def _rrd_init(self, filename):
     """
-        @param start can be one of the following
-                        * integer: epoch time
-                        * string: at-time
-                        * datetime object
+        :param filename: A string containing an absolute or
+                         relative path to a file, that is accessed
+                         for all operations.
+    """
+    self.filename = filename
+
+def _rrd_create(self, start='N', step=300, overwrite=False):
+    """
+        Creates a new RRD with the given `filename`.
+        This implements the rrdcreate_ command and thus takes similar
+        arguments.
+
+        As the database scheme (i.e. datasources and RRAs) is known,
+        this will automatically convert these settings into valid
+        parameters for rrdcreate_.
+
+        :param start: Is either an integer or string containing the
+                      number of seconds since the epoch, a :py:class:`datetime` object
+                      or a string containing an at-style time reference.
+        :param step: The number of seconds between each sample within
+                     the RRD.
+        :param overwrite: When set to True it will overwrite an existing
+                          RRD given by the filename upon object creation.
+                          This is the opposite of the ``--no-overwrite``
+                          flag.
+
+        :raises: :py:class:`pyro.rrd.RRDError`
+
+        .. _rrdcreate: http://oss.oetiker.ch/rrdtool/doc/rrdcreate.en.html
     """
     options = ["--start", _convert_time(start), "--step", repr(step)]
     if not overwrite:
         options += ["--no-overwrite"]
 
-    for name, datasource in obj._meta['datasources'].items():
+    for name, datasource in self._meta['datasources'].items():
         options += [repr(datasource)]
-    for name, rra in obj._meta['rras'].items():
+    for name, rra in self._meta['rras'].items():
         options += [repr(rra)]
 
-    stdout = obj._meta['implementation'](obj.filename, "create", options)
+    stdout = self._meta['implementation'](self.filename, "create", options)
 
-def _rrd_update(obj, timestamp, **kwargs):
-    options = ["--template", ":".join(obj._meta['datasources_list']), "--"]
+def _rrd_update(self, timestamp, **kwargs):
+    """
+        Updates a RRD file with the given samples. This implements the
+        rrdupdate_ command.
+
+        :param timestamp: Is either an integer or string containing the
+                          number of seconds since the epoch or a :py:class:`datetime`
+                          object.
+        :param kwargs: This is a dictionary were the key is the name of
+                       a datasource (i.e. the name of the field of the
+                       defined class) and the value, the value for the sample.
+                       Not specified datasources will automatically assume
+                       the value 'U' for unknown.
+
+        :raises: :py:class:`pyro.rrd.RRDError`
+
+        *Example*: Consider a class ``MyRRD`` that has two datasources ds1 and ds2.
+
+        .. sourcecode:: python
+
+            class MyRRD(rrd.RRD):
+                ds1 = rrd.Gauge(heartbeat=600)
+                ds2 = rrd.Counter(hearbeat=600)
+                rra1 = rrd.Max(xff=0.5, steps=1, rows=24)
+
+            myrrd = MyRRD("my.rrd")
+            myrrd.update(1234, ds1=5.4, ds2=3)
+            myrrd.update(5678, ds2=4)
+
+        These updates will be converted in the following ``rrdupdate`` executions.
+
+        .. sourcecode:: bash
+
+            rrdupdate my.rrd -t ds1:ds2 1234:5.4:3
+            rrdupdate my.rrd -t ds1:ds2 5678:U:4
+
+        .. _rrdupdate: http://oss.oetiker.ch/rrdtool/doc/rrdupdate.en.html
+    """
+    options = ["--template", ":".join(self._meta['datasources_list']), "--"]
 
     data = [_convert_time(timestamp)]
-    for dsname in obj._meta['datasources_list']:
+    for dsname in self._meta['datasources_list']:
         if not kwargs.has_key(dsname):
             data += ["U"]
         else:
             data += [repr(kwargs[dsname])]
     options += [":".join(data)]
 
-    stdout = obj._meta['implementation'](obj.filename, "update", options)
+    stdout = self._meta['implementation'](self.filename, "update", options)
 
 
-def _rrd_fetch(obj, cf, start="end-1day", end="now", resolution=None):
+def _rrd_fetch(self, cf, start="end-1day", end="now", resolution=None):
+    """
+        Fetches samples from RRD. This implements the rrdfetch_ command
+        and thus takes similar arguments.
+
+        :param cf: The string representation of a consolidation function
+        :param start: Is either an integer or string containing the number
+                      of seconds since the epoch, a :py:class:`datetime` object
+                      or a string containing an at-style time reference.
+        :param end: Same as *start*.
+        :param resolution: A resolution in seconds either as string or
+                           integer. If set to ``None`` rrdfetch_ will
+                           determine the best resolution.
+
+        :returns: :py:class:`pyro.rrd.RRDFetchResult`
+
+        :raises: :py:class:`pyro.rrd.RRDError`
+
+
+        *Example*:
+
+        .. sourcecode:: python
+
+            class MyRRD(rrd.RRD):
+                ds1 = rrd.Counter(heartbeat=120)
+                rra = rrd.Max(xff=0.5, steps=1, rows=24)
+
+            myrrd = MyRRD("my.rrd")
+            myrrd.fetch(cf=myrrd.rra.cf)
+
+        .. _rrdfetch: http://oss.oetiker.ch/rrdtool/doc/rrdfetch.en.html
+    """
     options = [repr(cf), "--start", _convert_time(start), "--end", _convert_time(end)]
     if not resolution is None:
         options += ['--resolution', repr(resolution)]
-    stdout = obj._meta['implementation'](obj.filename, "fetch", options)
-    return RRDFetchResult(stdout, obj._meta['datasources_list'])
+    stdout = self._meta['implementation'](self.filename, "fetch", options)
+    return RRDFetchResult(stdout, self._meta['datasources_list'])
 
-def _rrd_first(obj, index=0):
+def _rrd_first(self, index=0):
+    """
+        Fetches the timestamp of the first entry in an archive from
+        the RRD. This implements the rrdfirst_ command.
+
+        :param index: An index of the list of available archives within
+                      the RRD.
+
+        :returns: a :py:class:`datetime` object
+
+        :raises: :py:class:`pyro.rrd.RRDError`
+
+        *Example*:
+
+        .. sourcecode:: python
+
+            class MyRRD(rrd.RRD):
+                ds1 = rrd.Counter(heartbeat=120)
+                rra = rrd.Max(xff=0.5, steps=1, rows=24)
+
+            myrrd = MyRRD("my.rrd")
+            myrrd.first(cf=myrrd.rra.index)
+
+        .. _rrdfirst: http://oss.oetiker.ch/rrdtool/doc/rrdfirst.en.html
+    """
     options = ["--rraindex", repr(index)]
-    stdout = obj._meta['implementation'](obj.filename, "first", options)
+    stdout = self._meta['implementation'](self.filename, "first", options)
     return _convert_utc_time(stdout.readline()[:-1])
 
 class RRDMeta(type):
@@ -228,9 +373,10 @@ class RRDMeta(type):
 
     def add_to_class(cls, name, value):
         if isinstance(value, DataSource):
+            dsname = _convert_ds_name(name)
             cls._meta['datasources'][name] = value
-            cls._meta['datasources_list'].append(name)
-            setattr(value, 'name', _convert_ds_name(name))
+            cls._meta['datasources_list'].append(dsname)
+            setattr(value, 'name', dsname)
         elif isinstance(value, RRA):
             cls._meta['rras'][name] = value
             cls._meta['rras_list'].append(name)
