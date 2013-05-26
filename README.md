@@ -6,14 +6,12 @@ Alternative OO wrapper for rrdtool.
 
 To install thrush from the sources:
 
-   python setup.py install
+    python setup.py install
 
 ## Documentation
 
 See documentation included in source or look at the
-online copy of the documentation under
-
-   http://docs.0xdeadbeef.ch/thrush/
+online copy of the documentation under [http://docs.0xdeadbeef.ch/thrush/](http://docs.0xdeadbeef.ch/thrush/).
 
 ## License
 
