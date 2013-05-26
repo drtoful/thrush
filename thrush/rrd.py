@@ -29,14 +29,11 @@ def _convert_time(timeinfo):
         timeinfo = int(time.mktime(timeinfo.timetuple()))
     return repr(timeinfo)
 
-_time_localoffset = datetime.timedelta(seconds=
-    -(time.timezone if (time.localtime().tm_isdst == 0) else time.altzone))
 def _convert_utc_time(timestamp):
-    # RRDTool always converts it's times into UTC
-    # so we convert back to local time
+    # convert timestamp to datetime object
     timestamp = locale.atoi(timestamp)
-    d = datetime.datetime.fromtimestamp(timestamp)
-    return d + _time_localoffset
+    date = datetime.datetime.fromtimestamp(timestamp)
+    return date
 
 def _convert_float(value):
     return locale.atof(value)
