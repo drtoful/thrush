@@ -15,13 +15,13 @@ from subprocess import Popen, PIPE
 _dsname_re = re.compile('[^a-zA-Z0-9_]')
 _fetch_re = re.compile('[0-9]+: .+')
 
-def _convert_ds_name(name):
+def _convert_to_dsname(name):
     # ds-names are only allowed to be 1-19 characters
     # long and contain [a-Z0-9_] (according to
     # documentation)
     return _dsname_re.sub('', name)[:19]
 
-def _convert_time(timeinfo):
+def _convert_to_timestamp(timeinfo):
     # converts a (date)time object into a timestamp
     # or just get the string representation of whatever
     # was passed
@@ -29,7 +29,7 @@ def _convert_time(timeinfo):
         timeinfo = int(time.mktime(timeinfo.timetuple()))
     return repr(timeinfo)
 
-def _convert_utc_time(timestamp):
+def _convert_from_timestamp(timestamp):
     # convert timestamp to datetime object
     timestamp = locale.atoi(timestamp)
     date = datetime.datetime.fromtimestamp(timestamp)
@@ -151,7 +151,7 @@ class RRDFetchResult(object):
 
     def __init__(self, stdout, dsnames):
         self.stdout = stdout
-        self.dsnames = [_convert_ds_name(name) for name in dsnames]
+        self.dsnames = [_convert_to_dsname(name) for name in dsnames]
 
     def __iter__(self):
         for line in self.stdout:
@@ -160,7 +160,7 @@ class RRDFetchResult(object):
 
             timestamp, values = line.split(":", 1)
             converted_values = map(_convert_float, values.strip().split(' '))
-            yield _convert_utc_time(timestamp), dict(zip(self.dsnames, converted_values))
+            yield _convert_from_timestamp(timestamp), dict(zip(self.dsnames, converted_values))
 
     def __enter__(self):
         return self
@@ -213,7 +213,7 @@ def _rrd_create(self, start='N', step=300, overwrite=False):
 
         .. _rrdcreate: http://oss.oetiker.ch/rrdtool/doc/rrdcreate.en.html
     """
-    options = ["--start", _convert_time(start), "--step", repr(step)]
+    options = ["--start", _convert_to_timestamp(start), "--step", repr(step)]
     if not overwrite:
         options += ["--no-overwrite"]
     options += [repr(ds) for _, ds in self._meta['datasources'].items()]
@@ -259,7 +259,7 @@ def _rrd_update(self, timestamp, **kwargs):
         .. _rrdupdate: http://oss.oetiker.ch/rrdtool/doc/rrdupdate.en.html
     """
     options = ["--template", ":".join(self._meta['datasources_list']), "--"]
-    data = [_convert_time(timestamp)]
+    data = [_convert_to_timestamp(timestamp)]
     data += ["U" if not kwargs.has_key(ds) else str(kwargs[ds])
         for ds in self._meta['datasources_list']]
     options += [":".join(data)]
@@ -297,7 +297,7 @@ def _rrd_fetch(self, cf, start="end-1day", end="now", resolution=None):
 
         .. _rrdfetch: http://oss.oetiker.ch/rrdtool/doc/rrdfetch.en.html
     """
-    options = [repr(cf), "--start", _convert_time(start), "--end", _convert_time(end)]
+    options = [repr(cf), "--start", _convert_to_timestamp(start), "--end", _convert_to_timestamp(end)]
     if not resolution is None:
         options += ['--resolution', repr(resolution)]
     stdout = self._meta['implementation'](self.filename, "fetch", options)
@@ -330,7 +330,7 @@ def _rrd_first(self, index=0):
     """
     options = ["--rraindex", repr(index)]
     stdout = self._meta['implementation'](self.filename, "first", options)
-    return _convert_utc_time(stdout.readline()[:-1])
+    return _convert_from_timestamp(stdout.readline()[:-1])
 
 class RRDMeta(type):
     def __new__(cls, name, base, attrs):
@@ -365,7 +365,7 @@ class RRDMeta(type):
 
     def add_to_class(cls, name, value):
         if isinstance(value, DataSource):
-            dsname = _convert_ds_name(name)
+            dsname = _convert_to_dsname(name)
             cls._meta['datasources'][name] = value
             cls._meta['datasources_list'].append(name)
             setattr(value, 'name', dsname)
