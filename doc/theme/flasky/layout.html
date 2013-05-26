@@ -1,0 +1,39 @@
+{% extends "basic/layout.html" %}
+{% block header %}
+  {{ super() }}
+  {% if pagename == 'index' %}
+  <div class="indexwrapper">
+  {% endif %}
+{% endblock %}
+{% block footer %}
+  <div class="footer">
+    &copy; Copyright {{ copyright }}.
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a>.
+  </div>
+  {% if pagename == 'index' %}
+  </div>
+  {% endif %}
+{% endblock %}
+{# do not display relbars #}
+{% block relbar1 %}
+
+<div class="navigation">
+   <ul>
+{% if prev %}
+      <li>Prev: <a href="{{ prev.link|e }}">{{ prev.title }}</a></li>
+{% else %}
+      <li>&nbsp;</li>
+{% endif %}
+{% if next %}
+      <li>Next: <a href="{{ next.link|e }}">{{ next.title }}</a></li>
+{% else %}
+      <li>&nbsp;</li>
+{% endif %}
+   </ul>
+   <a href="{{ pathto(master_doc) }}">Documentation Overview</a>
+</div>
+
+{% endblock %}
+{% block relbar2 %}{% endblock %}
+{% block sidebar1 %}{% endblock %}
+{% block sidebar2 %}{% endblock %}
