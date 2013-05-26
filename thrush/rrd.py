@@ -212,7 +212,7 @@ def _rrd_create(self, start='N', step=300, overwrite=False):
                           This is the opposite of the ``--no-overwrite``
                           flag.
 
-        :raises: :py:class:`pyro.rrd.RRDError`
+        :raises: :py:class:`thrush.rrd.RRDError`
 
         .. _rrdcreate: http://oss.oetiker.ch/rrdtool/doc/rrdcreate.en.html
     """
@@ -237,7 +237,7 @@ def _rrd_update(self, timestamp, **kwargs):
                        Not specified datasources will automatically assume
                        the value 'U' for unknown.
 
-        :raises: :py:class:`pyro.rrd.RRDError`
+        :raises: :py:class:`thrush.rrd.RRDError`
 
         *Example*: Consider a class ``MyRRD`` that has two datasources ds1 and ds2.
 
@@ -282,9 +282,9 @@ def _rrd_fetch(self, cf, start="end-1day", end="now", resolution=None):
                            integer. If set to ``None`` rrdfetch_ will
                            determine the best resolution.
 
-        :returns: :py:class:`pyro.rrd.RRDFetchResult`
+        :returns: :py:class:`thrush.rrd.RRDFetchResult`
 
-        :raises: :py:class:`pyro.rrd.RRDError`
+        :raises: :py:class:`thrush.rrd.RRDError`
 
 
         *Example*:
@@ -316,7 +316,7 @@ def _rrd_first(self, index=0):
 
         :returns: a :py:class:`datetime` object
 
-        :raises: :py:class:`pyro.rrd.RRDError`
+        :raises: :py:class:`thrush.rrd.RRDError`
 
         *Example*:
 
