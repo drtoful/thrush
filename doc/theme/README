@@ -1,0 +1,9 @@
+'flasky' theme is based upong the flask_small theme by
+Armin Ronacher, licensed under the BSD license.
+
+You can get the original theme under:
+    https://github.com/mitsuhiko/flask-sphinx-themes
+
+My changes are minimal: I only added a 'Prev' and 'Next' link
+on top of the page.
+
