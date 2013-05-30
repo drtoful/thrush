@@ -1,0 +1,4 @@
+include README.md LICENSE AUTHORS
+include doc/Makefile
+recursive-include doc/theme *
+recursive-include doc/source *.rst

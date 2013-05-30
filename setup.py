@@ -13,7 +13,7 @@ setup(
     url="http://dev.0xdeadbeef.ch/thrush.git",
     description="Alternative OO wrapper for rrdtool",
     license="BSD",
-    classifiers = [
+    classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
         'Intended Audience :: System Administrators',
@@ -22,4 +22,3 @@ setup(
         'Topic :: Software Development :: Libraries :: Python Modules'
     ]
 )
-
