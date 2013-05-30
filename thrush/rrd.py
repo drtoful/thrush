@@ -15,11 +15,13 @@ from subprocess import Popen, PIPE
 _dsname_re = re.compile('[^a-zA-Z0-9_]')
 _fetch_re = re.compile('[0-9]+: .+')
 
+
 def _convert_to_dsname(name):
     # ds-names are only allowed to be 1-19 characters
     # long and contain [a-Z0-9_] (according to
     # documentation)
     return _dsname_re.sub('', name)[:19]
+
 
 def _convert_to_timestamp(timeinfo):
     # converts a (date)time object into a timestamp
@@ -29,14 +31,17 @@ def _convert_to_timestamp(timeinfo):
         timeinfo = int(time.mktime(timeinfo.timetuple()))
     return repr(timeinfo)
 
+
 def _convert_from_timestamp(timestamp):
     # convert timestamp to datetime object
     timestamp = locale.atoi(timestamp)
     date = datetime.datetime.fromtimestamp(timestamp)
     return date
 
+
 def _convert_float(value):
     return locale.atof(value)
+
 
 class RRDError(Exception):
     def __init__(self, errorcode, message):
@@ -50,11 +55,11 @@ class RRDError(Exception):
     def __repr__(self):
         return str(self)
 
+
 class DataSource(object):
     """
         Base class for all Data Source Types.
     """
-
     def __init__(self, heartbeat, min='U', max='U'):
         self.heartbeat = repr(heartbeat)
         self.min = repr(min)
@@ -72,11 +77,14 @@ class DataSource(object):
     def __repr__(self):
         return str(self)
 
+
 class Gauge(DataSource):
     _DST = "GAUGE"
 
+
 class Counter(DataSource):
     _DST = "COUNTER"
+
 
 class RRA(object):
     """
@@ -96,11 +104,13 @@ class RRA(object):
     def cf(self):
         return self._CF
 
+
 class Average(RRA):
     """
         Implements the **AVERAGE** consolidation function
     """
     _CF = "AVERAGE"
+
 
 class Min(RRA):
     """
@@ -108,17 +118,20 @@ class Min(RRA):
     """
     _CF = "MIN"
 
+
 class Max(RRA):
     """
         Implements the **MAX** consolidation function
     """
     _CF = "MAX"
 
+
 class Last(RRA):
     """
         Implements the **LAST** consolidation function
     """
     _CF = "LAST"
+
 
 class RRDFetchResult(object):
     """
@@ -148,7 +161,6 @@ class RRDFetchResult(object):
                 for timestamp, values in result:
                     print timestamp, values[myrrd.ds.name]
     """
-
     def __init__(self, stdout, dsnames):
         self.stdout = stdout
         self.dsnames = [_convert_to_dsname(name) for name in dsnames]
@@ -156,17 +168,21 @@ class RRDFetchResult(object):
     def __iter__(self):
         for line in self.stdout:
             match = _fetch_re.match(line)
-            if match is None: continue
+            if match is None:
+                continue
 
             timestamp, values = line.split(":", 1)
             converted_values = map(_convert_float, values.strip().split(' '))
-            yield _convert_from_timestamp(timestamp), dict(zip(self.dsnames, converted_values))
+            yield _convert_from_timestamp(timestamp), dict(
+                zip(self.dsnames, converted_values)
+            )
 
     def __enter__(self):
         return self
 
     def __exit__(self, type, value, traceback):
         self.stdout.close()
+
 
 def _rrdtool_impl(filename, command, options):
     env = os.environ
@@ -181,6 +197,7 @@ def _rrdtool_impl(filename, command, options):
 
     return process.stdout
 
+
 def _rrd_init(self, filename):
     """
         :param filename: A string containing an absolute or
@@ -188,6 +205,7 @@ def _rrd_init(self, filename):
                          for all operations.
     """
     self.filename = filename
+
 
 def _rrd_create(self, start='N', step=300, overwrite=False):
     """
@@ -200,7 +218,8 @@ def _rrd_create(self, start='N', step=300, overwrite=False):
         parameters for rrdcreate_.
 
         :param start: Is either an integer or string containing the
-                      number of seconds since the epoch, a :py:class:`datetime` object
+                      number of seconds since the epoch,
+                      a :py:class:`datetime` object
                       or a string containing an at-style time reference.
         :param step: The number of seconds between each sample within
                      the RRD.
@@ -220,14 +239,15 @@ def _rrd_create(self, start='N', step=300, overwrite=False):
     options += [repr(rra) for _, rra in self._meta['rras'].items()]
     stdout = self._meta['implementation'](self.filename, "create", options)
 
+
 def _rrd_update(self, timestamp, **kwargs):
     """
         Updates a RRD file with the given samples. This implements the
         rrdupdate_ command.
 
         :param timestamp: Is either an integer or string containing the
-                          number of seconds since the epoch or a :py:class:`datetime`
-                          object.
+                          number of seconds since the epoch or a
+                          :py:class:`datetime` object.
         :param kwargs: This is a dictionary were the key is the name of
                        a datasource (i.e. the name of the field of the
                        defined class) and the value, the value for the sample.
@@ -236,7 +256,8 @@ def _rrd_update(self, timestamp, **kwargs):
 
         :raises: :py:class:`thrush.rrd.RRDError`
 
-        *Example*: Consider a class ``MyRRD`` that has two datasources ds1 and ds2.
+        *Example*: Consider a class ``MyRRD`` that has two datasources
+        ds1 and ds2.
 
         .. sourcecode:: python
 
@@ -249,7 +270,8 @@ def _rrd_update(self, timestamp, **kwargs):
             myrrd.update(1234, ds1=5.4, ds2=3)
             myrrd.update(5678, ds2=4)
 
-        These updates will be converted in the following ``rrdupdate`` executions.
+        These updates will be converted in the following ``rrdupdate``
+        executions.
 
         .. sourcecode:: bash
 
@@ -260,10 +282,13 @@ def _rrd_update(self, timestamp, **kwargs):
     """
     options = ["--template", ":".join(self._meta['datasources_list']), "--"]
     data = [_convert_to_timestamp(timestamp)]
-    data += ["U" if not kwargs.has_key(ds) else str(kwargs[ds])
-        for ds in self._meta['datasources_list']]
+    data += [
+        "U" if not ds in kwargs else str(kwargs[ds])
+        for ds in self._meta['datasources_list']
+    ]
     options += [":".join(data)]
     stdout = self._meta['implementation'](self.filename, "update", options)
+
 
 def _rrd_fetch(self, cf, start="end-1day", end="now", resolution=None):
     """
@@ -297,11 +322,15 @@ def _rrd_fetch(self, cf, start="end-1day", end="now", resolution=None):
 
         .. _rrdfetch: http://oss.oetiker.ch/rrdtool/doc/rrdfetch.en.html
     """
-    options = [repr(cf), "--start", _convert_to_timestamp(start), "--end", _convert_to_timestamp(end)]
+    options = [
+        repr(cf), "--start", _convert_to_timestamp(start), "--end",
+        _convert_to_timestamp(end)
+    ]
     if not resolution is None:
         options += ['--resolution', repr(resolution)]
     stdout = self._meta['implementation'](self.filename, "fetch", options)
     return RRDFetchResult(stdout, self._meta['datasources_list'])
+
 
 def _rrd_first(self, index=0):
     """
@@ -332,6 +361,7 @@ def _rrd_first(self, index=0):
     stdout = self._meta['implementation'](self.filename, "first", options)
     return _convert_from_timestamp(stdout.readline()[:-1])
 
+
 class RRDMeta(type):
     def __new__(cls, name, base, attrs):
         super_new = super(RRDMeta, cls).__new__
@@ -355,7 +385,7 @@ class RRDMeta(type):
             'datasources_list': [],
             'rras': {},
             'rras_index': {},
-            'rras_list' : [],
+            'rras_list': [],
             'implementation': _rrdtool_impl
         })
         for obj_name, obj in attrs.items():
@@ -381,5 +411,5 @@ class RRDMeta(type):
 
         setattr(cls, name, value)
 
-RRD = RRDMeta("RRD", (object,), {})
 
+RRD = RRDMeta("RRD", (object,), {})
