@@ -91,11 +91,13 @@ class Derive(DataSource):
     """
     _DST = "DERIVE"
 
+
 class Absolute(DataSource):
     """
         .. versionadded:: 0.2
     """
     _DST = "ABSOLUTE"
+
 
 class Compute(DataSource):
     """
@@ -115,6 +117,7 @@ class Compute(DataSource):
 
     def __repr__(self):
         return str(self)
+
 
 class RRA(object):
     """
@@ -362,6 +365,26 @@ def _rrd_fetch(self, cf, start="end-1day", end="now", resolution=None):
     return RRDFetchResult(stdout, self._meta['datasources_list'])
 
 
+def _rrd_last(self):
+    """
+        .. versionadded:: 0.2
+
+        Fetches the last sample in the RRD (i.e. the data saved by the
+        last ``update``). This implements the rrdlastupdate_ command.
+        rrdlast_ would only return the timestamp of the last update. This
+        information can also be obtained using this method.
+
+        :return: :py:class:`thrush.rrd.RRDFetchResult`
+
+        :raises: :py:class:`thrush.rrd.RRDError`
+
+        .. _rrdlast: http://oss.oetiker.ch/rrdtool/doc/rrdlast.en.html
+        .. _rrdlastupdate: http://oss.oetiker.ch/rrdtool/doc/rrdlastupdate.en.html
+    """
+    stdout = self._meta['implementation'](self.filename, "lastupdate", [])
+    return RRDFetchResult(stdout, self._meta['datasources_list'])
+
+
 def _rrd_first(self, index=0):
     """
         Fetches the timestamp of the first entry in an archive from
@@ -391,6 +414,7 @@ def _rrd_first(self, index=0):
     stdout = self._meta['implementation'](self.filename, "first", options)
     return _convert_from_timestamp(stdout.readline()[:-1])
 
+
 def _rrd_exists(self):
     """
         .. versionadded:: 0.2
@@ -413,6 +437,7 @@ class RRDMeta(type):
 
             super_class.add_to_class('create', _rrd_create)
             super_class.add_to_class('update', _rrd_update)
+            super_class.add_to_class('last', _rrd_last)
             super_class.add_to_class('first', _rrd_first)
             super_class.add_to_class('fetch', _rrd_fetch)
             super_class.add_to_class('exists', _rrd_exists)
