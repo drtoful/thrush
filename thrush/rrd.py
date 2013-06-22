@@ -40,7 +40,10 @@ def _convert_from_timestamp(timestamp):
 
 
 def _convert_float(value):
-    return locale.atof(value)
+    try:
+        return locale.atof(value)
+    except ValueError:
+        return value
 
 
 class RRDError(Exception):
