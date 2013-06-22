@@ -35,6 +35,15 @@ Datasources
 .. autoclass:: thrush.rrd.Gauge
     :show-inheritance:
 
+.. autoclass:: thrush.rrd.Derive
+    :show-inheritance:
+
+.. autoclass:: thrush.rrd.Absolute
+    :show-inheritance:
+
+.. autoclass:: thrush.rrd.Compute
+    :show-inheritance:
+
 Archives (RRA)
 --------------
 
