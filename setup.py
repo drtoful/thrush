@@ -4,7 +4,7 @@ from setuptools import setup
 
 setup(
     name='thrush',
-    version='0.1',
+    version='0.2',
     packages=["thrush"],
 
     # package metadata
