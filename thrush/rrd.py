@@ -85,6 +85,36 @@ class Gauge(DataSource):
 class Counter(DataSource):
     _DST = "COUNTER"
 
+class Derive(DataSource):
+    """
+        .. versionadded:: 0.2
+    """
+    _DST = "DERIVE"
+
+class Absolute(DataSource):
+    """
+        .. versionadded:: 0.2
+    """
+    _DST = "ABSOLUTE"
+
+class Compute(DataSource):
+    """
+        .. versionadded:: 0.2
+    """
+    _DST = "COMPUTE"
+
+    def __init__(self, rpn_expression):
+        self.rpn = rpn_expression
+
+    def __str__(self):
+        return "DS:%s:%s:%s" % (
+            self.name,
+            self._DST,
+            self.rpn
+        )
+
+    def __repr__(self):
+        return str(self)
 
 class RRA(object):
     """
