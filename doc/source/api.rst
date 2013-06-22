@@ -14,7 +14,7 @@ RRD Object
 ----------
 
 .. autoclass:: thrush.rrd.RRD
-    :members: create, update, fetch, first
+    :members: create, exists, update, fetch, first
 
 .. autoclass:: thrush.rrd.RRDFetchResult()
 

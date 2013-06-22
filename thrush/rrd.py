@@ -391,6 +391,18 @@ def _rrd_first(self, index=0):
     stdout = self._meta['implementation'](self.filename, "first", options)
     return _convert_from_timestamp(stdout.readline()[:-1])
 
+def _rrd_exists(self):
+    """
+        .. versionadded:: 0.2
+
+        :returns: True if the RRD file already exists, False otherwise
+
+        You can also use a RRD object directly for comparision in
+        boolean expression, to check whether the RRD file exists
+        or not. Thus ``MyRRD("my.rrd").exists() == MyRRD("my.rrd")``.
+    """
+    return os.path.isfile(self.filename)
+
 
 class RRDMeta(type):
     def __new__(cls, name, base, attrs):
@@ -403,6 +415,9 @@ class RRDMeta(type):
             super_class.add_to_class('update', _rrd_update)
             super_class.add_to_class('first', _rrd_first)
             super_class.add_to_class('fetch', _rrd_fetch)
+            super_class.add_to_class('exists', _rrd_exists)
+            super_class.add_to_class('__bool__', _rrd_exists)
+            super_class.add_to_class('__nonzero__', _rrd_exists)
             super_class.add_to_class('__init__', _rrd_init)
 
             return super_class
