@@ -17,6 +17,7 @@ RRD Object
     :members: create, exists, update, fetch, last, first
 
 .. autoclass:: thrush.rrd.RRDFetchResult()
+    :members: close
 
 Datasources
 -----------

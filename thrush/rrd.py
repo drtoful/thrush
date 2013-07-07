@@ -221,11 +221,20 @@ class RRDFetchResult(object):
                 zip(self.dsnames, converted_values)
             )
 
+    def close(self):
+        """
+            .. versionadded:: 0.3
+
+            Manually closes the open file descriptor associated with this
+            result object.
+        """
+        self.stdout.close()
+
     def __enter__(self):
         return self
 
     def __exit__(self, type, value, traceback):
-        self.stdout.close()
+        self.close()
 
 
 def _rrdtool_impl(filename, command, options):
