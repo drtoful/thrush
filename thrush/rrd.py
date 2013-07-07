@@ -10,6 +10,8 @@ import os
 import datetime
 import time
 import locale
+import functools
+import math
 from subprocess import Popen, PIPE
 
 _dsname_re = re.compile('[^a-zA-Z0-9_]')
@@ -39,11 +41,15 @@ def _convert_from_timestamp(timestamp):
     return date
 
 
-def _convert_float(value):
+def _convert_float(unknown, value):
     try:
-        return locale.atof(value)
+        value = locale.atof(value)
     except ValueError:
-        return value
+        value = float("nan")
+
+    if math.isnan(value):
+        return unknown
+    return value
 
 
 class RRDError(Exception):
@@ -197,9 +203,10 @@ class RRDFetchResult(object):
                 for timestamp, values in result:
                     print timestamp, values[myrrd.ds.name]
     """
-    def __init__(self, stdout, dsnames):
+    def __init__(self, stdout, dsnames, unknown=None):
         self.stdout = stdout
         self.dsnames = [_convert_to_dsname(name) for name in dsnames]
+        self.unknown = unknown
 
     def __iter__(self):
         for line in self.stdout:
@@ -208,7 +215,8 @@ class RRDFetchResult(object):
                 continue
 
             timestamp, values = line.split(":", 1)
-            converted_values = map(_convert_float, values.strip().split(' '))
+            func = functools.partial(_convert_float, self.unknown)
+            converted_values = map(func, values.strip().split(' '))
             yield _convert_from_timestamp(timestamp), dict(
                 zip(self.dsnames, converted_values)
             )
@@ -326,7 +334,8 @@ def _rrd_update(self, timestamp, **kwargs):
     stdout = self._meta['implementation'](self.filename, "update", options)
 
 
-def _rrd_fetch(self, cf, start="end-1day", end="now", resolution=None):
+def _rrd_fetch(self, cf, start="end-1day", end="now", resolution=None,
+               unknown=None):
     """
         Fetches samples from RRD. This implements the rrdfetch_ command
         and thus takes similar arguments.
@@ -339,11 +348,15 @@ def _rrd_fetch(self, cf, start="end-1day", end="now", resolution=None):
         :param resolution: A resolution in seconds either as string or
                            integer. If set to ``None`` rrdfetch_ will
                            determine the best resolution.
+        :param unknown: Converts all unknown values in the RRD to the
+                        value specified.
 
         :returns: :py:class:`thrush.rrd.RRDFetchResult`
 
         :raises: :py:class:`thrush.rrd.RRDError`
 
+        .. versionadded:: 0.3
+            *unknown* parameter
 
         *Example*:
 
@@ -365,7 +378,7 @@ def _rrd_fetch(self, cf, start="end-1day", end="now", resolution=None):
     if not resolution is None:
         options += ['--resolution', repr(resolution)]
     stdout = self._meta['implementation'](self.filename, "fetch", options)
-    return RRDFetchResult(stdout, self._meta['datasources_list'])
+    return RRDFetchResult(stdout, self._meta['datasources_list'], unknown)
 
 
 def _rrd_last(self):
