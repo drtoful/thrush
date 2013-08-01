@@ -288,8 +288,14 @@ def _rrd_create(self, start='N', step=300, overwrite=False):
     options = ["--start", _convert_to_timestamp(start), "--step", repr(step)]
     if not overwrite:
         options += ["--no-overwrite"]
-    options += [repr(ds) for _, ds in self._meta['datasources'].items()]
-    options += [repr(rra) for _, rra in self._meta['rras'].items()]
+    options += [
+        repr(self._meta['datasources'][ds])
+        for ds in self._meta['datasources_list']
+    ]
+    options += [
+        repr(self._meta['rras'][rra])
+        for rra in self._meta['rras_list']
+    ]
     stdout = self._meta['implementation'](self.filename, "create", options)
 
 
@@ -485,6 +491,14 @@ class RRDMeta(type):
         })
         for obj_name, obj in attrs.items():
             new_class.add_to_class(obj_name, obj)
+        new_class._meta['datasources_list'] = \
+            sorted(new_class._meta['datasources_list'])
+        new_class._meta['rras_list'] = \
+            sorted(new_class._meta['rras_list'])
+        for i in xrange(0, len(new_class._meta['rras_list'])):
+            name = new_class._meta['rras_list'][i]
+            new_class._meta['rras_index'][name] = i
+            new_class._meta['rras'][name].index = i
 
         return new_class
 
@@ -497,10 +511,6 @@ class RRDMeta(type):
         elif isinstance(value, RRA):
             cls._meta['rras'][name] = value
             cls._meta['rras_list'].append(name)
-
-            index = len(cls._meta['rras_index'])
-            cls._meta['rras_index'][name] = index
-            value.index = index
         elif name == "_impl":
             cls._meta['implementation'] = value
 
