@@ -12,7 +12,8 @@ import time
 import locale
 import functools
 import math
-from subprocess import Popen, PIPE
+import contextlib
+from subprocess import Popen, PIPE, STDOUT
 
 _dsname_re = re.compile('[^a-zA-Z0-9_]')
 _fetch_re = re.compile('[0-9]+: .+')
@@ -237,18 +238,71 @@ class RRDFetchResult(object):
         self.close()
 
 
-def _rrdtool_impl(filename, command, options):
+def _rrdtool_impl(filename, command, options, wait=True):
+    class RRDOutput(object):
+        """
+        Wrapping around subprocesses output streams to get
+        a more "unbuffered" version that should prevent
+        errors when having large outputs from rrdtool.
+
+        Based upon:
+            https://gist.github.com/thelinuxkid/5114777
+        """
+        def __init__(self, process):
+            self.process = process
+            self._check_stderr()
+
+        def _unbuffered(self, stream):
+            newlines = ['\n', '\r\n', '\r']
+
+            stream = getattr(self.process, stream)
+            with contextlib.closing(stream):
+                while True:
+                    out = []
+                    last = stream.read(1)
+
+                    if last == "" and self.process.poll() is not None:
+                        break
+
+                    while last not in newlines:
+                        if last == "" and self.process.poll() is not None:
+                            break
+
+                        out.append(last)
+                        last = stream.read(1)
+
+                    yield "".join(out)
+
+        def _check_stderr(self):
+            time.sleep(0.01)
+
+            # check stderr for some text. if so we shall raise error
+            code = self.process.poll()
+            if not code is None and code != 0:
+                raise RRDError(
+                    code, "\n".join(
+                        [x for x in self._unbuffered("stderr")]
+                    )
+                )
+
+        def __iter__(self):
+            self._check_stderr()
+            for line in self._unbuffered("stdout"):
+                yield line
+
+        def close(self):
+            pass
+
     env = os.environ
     process = Popen(
         'rrdtool %s %s %s' % (command, filename, " ".join(options)),
-        env=env, shell=True, stdout=PIPE, stderr=PIPE
+        env=env, shell=True, stdout=PIPE, stderr=PIPE, universal_newlines=True
     )
-    process.wait()
 
-    if process.returncode != 0:
-        raise RRDError(process.returncode, process.stderr.readline()[:-1])
+    if wait:
+        process.wait()
 
-    return process.stdout
+    return RRDOutput(process)
 
 
 def _rrd_init(self, filename):
@@ -392,7 +446,9 @@ def _rrd_fetch(self, cf, start="end-1day", end="now", resolution=None,
     ]
     if not resolution is None:
         options += ['--resolution', repr(resolution)]
-    stdout = self._meta['implementation'](self.filename, "fetch", options)
+    stdout = self._meta['implementation'](
+        self.filename, "fetch", options, wait=False
+    )
     return RRDFetchResult(stdout, self._meta['datasources_list'], unknown)
 
 
@@ -412,7 +468,9 @@ def _rrd_last(self):
         .. _rrdlast: http://oss.oetiker.ch/rrdtool/doc/rrdlast.en.html
         .. _rrdlastupdate: http://oss.oetiker.ch/rrdtool/doc/rrdlastupdate.en.html
     """
-    stdout = self._meta['implementation'](self.filename, "lastupdate", [])
+    stdout = self._meta['implementation'](
+        self.filename, "lastupdate", [], wait=False
+    )
     return RRDFetchResult(stdout, self._meta['datasources_list'])
 
 
